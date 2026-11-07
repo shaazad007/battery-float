@@ -1,15 +1,21 @@
 
 name: Build Windows EXE
 
-on:
+'on':
   workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout project
+      - name: Checkout Project
         uses: actions/checkout@v4
 
       - name: Install Flutter
@@ -29,8 +35,9 @@ jobs:
       - name: Build Windows Release
         run: flutter build windows --release
 
-      - name: Upload Windows Application
+      - name: Upload Windows EXE
         uses: actions/upload-artifact@v4
         with:
           name: Battery-Float-Windows
           path: build/windows/x64/runner/Release/
+          if-no-files-found: error
