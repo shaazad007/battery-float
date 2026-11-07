@@ -17,7 +17,7 @@ Future<void> main() async {
   await windowManager.ensureInitialized();
   await localNotifier.setup(appName: 'Battery Float', shortcutPolicy: ShortcutPolicy.requireCreate);
   const options = WindowOptions(
-    size: Size(260, 150), minimumSize: Size(240, 120),
+    size: Size(300, 64), minimumSize: Size(160, 48),
     center: false, backgroundColor: Colors.transparent,
     skipTaskbar: true, titleBarStyle: TitleBarStyle.hidden,
     alwaysOnTop: true,
@@ -47,9 +47,13 @@ class BatteryHome extends StatefulWidget {
   State<BatteryHome> createState() => _BatteryHomeState();
 }
 
-class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowListener {
+class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowListener, SingleTickerProviderStateMixin {
   final Battery _battery = Battery();
   Timer? _poll;
+  late final AnimationController _glow;
+  double _barWidth = 280;
+  double _barHeight = 16;
+  double _glowSeconds = 2.0;
   int _level = -1;
   BatteryState _state = BatteryState.unknown;
   Set<int> _alerts = {10, 20, 50};
@@ -65,6 +69,7 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
   @override
   void initState() {
     super.initState();
+    _glow = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000))..repeat();
     trayManager.addListener(this);
     windowManager.addListener(this);
     _initialize();
@@ -79,9 +84,15 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
       _opacity = prefs.getDouble('opacity') ?? 0.78;
       _alwaysTop = prefs.getBool('alwaysTop') ?? true;
       _sound = prefs.getBool('sound') ?? true;
-      _compact = prefs.getBool('compact') ?? false;
+      _compact = false;
+      _barWidth = prefs.getDouble('barWidth') ?? 280;
+      _barHeight = prefs.getDouble('barHeight') ?? 16;
+      _glowSeconds = prefs.getDouble('glowSeconds') ?? 2.0;
+      _glow.duration = Duration(milliseconds: (_glowSeconds * 1000).round());
+      _glow.repeat();
     });
     await windowManager.setAlwaysOnTop(_alwaysTop);
+    await windowManager.setOpacity(_opacity);
     await _resize();
     await _updateTray();
     await _refresh();
@@ -94,12 +105,14 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
     await p.setDouble('opacity', _opacity);
     await p.setBool('alwaysTop', _alwaysTop);
     await p.setBool('sound', _sound);
-    await p.setBool('compact', _compact);
+    await p.setDouble('barWidth', _barWidth);
+    await p.setDouble('barHeight', _barHeight);
+    await p.setDouble('glowSeconds', _glowSeconds);
   }
 
   Future<void> _resize() async {
-    await windowManager.setSize(_settings ? const Size(330, 490) :
-      _compact ? const Size(180, 74) : const Size(260, 150));
+    await windowManager.setMinimumSize(_settings ? const Size(380, 560) : const Size(160, 48));
+    await windowManager.setSize(_settings ? const Size(420, 650) : Size(_barWidth + 40, 64));
   }
 
   Future<void> _refresh() async {
@@ -150,7 +163,10 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
       await trayManager.setToolTip('Battery Float: ${_level < 0 ? "Reading" : "$_level%"}');
       await trayManager.setContextMenu(Menu(items: [
         MenuItem(key: 'show', label: 'Show widget'),
-        MenuItem(key: 'settings', label: 'Settings'),
+        MenuItem(key: 'settings', label: 'Settings...'),
+        MenuItem(key: 'top', label: _alwaysTop ? 'Always on Top: On' : 'Always on Top: Off'),
+        MenuItem.separator(),
+        MenuItem(key: 'credit', label: 'Developed by Mohammad Shaazad'),
         MenuItem.separator(),
         MenuItem(key: 'quit', label: 'Exit Battery Float'),
       ]));
@@ -160,7 +176,8 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
   }
 
   Future<void> _showSettings() async {
-    setState(() { _settings = true; _compact = false; });
+    setState(() { _settings = true; });
+    await windowManager.setOpacity(1.0);
     await _resize();
     await windowManager.show();
     await windowManager.focus();
@@ -169,6 +186,7 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
   Future<void> _closeSettings() async {
     setState(() => _settings = false);
     await _resize();
+    await windowManager.setOpacity(_opacity);
   }
 
   Future<void> _exit() async {
@@ -192,8 +210,36 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
     switch (item.key) {
       case 'show': windowManager.show(); break;
       case 'settings': _showSettings(); break;
+      case 'top': _toggleTop(); break;
+      case 'credit': _showSettings(); break;
       case 'quit': _exit(); break;
     }
+  }
+
+  Future<void> _toggleTop() async {
+    setState(() => _alwaysTop = !_alwaysTop);
+    await windowManager.setAlwaysOnTop(_alwaysTop);
+    await _save();
+    await _updateTray();
+  }
+
+  void _showWidgetMenu(TapDownDetails details) async {
+    final position = details.globalPosition;
+    final selection = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
+      items: [
+        const PopupMenuItem(value: 'settings', child: Text('Settings...')),
+        PopupMenuItem(value: 'top', child: Text('Always on Top: ${_alwaysTop ? "On" : "Off"}')),
+        const PopupMenuDivider(),
+        const PopupMenuItem(enabled: false, child: Text('Developed by Mohammad Shaazad')),
+        const PopupMenuDivider(),
+        const PopupMenuItem(value: 'exit', child: Text('Exit')),
+      ],
+    );
+    if (selection == 'settings') await _showSettings();
+    if (selection == 'top') await _toggleTop();
+    if (selection == 'exit') await _exit();
   }
 
   @override
@@ -204,6 +250,7 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
   @override
   void dispose() {
     _poll?.cancel();
+    _glow.dispose();
     trayManager.removeListener(this);
     windowManager.removeListener(this);
     super.dispose();
@@ -218,62 +265,73 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
     _ => 'Checking status',
   };
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xff101827).withValues(alpha: _opacity),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: .19)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .18), blurRadius: 12)],
-        ),
-        child: _settings ? _settingsPanel() : _widgetPanel(),
-      ),
-    );
-  }
+  bool get _isFull => _level >= 100 || _state == BatteryState.full;
+  Color get _glowColor => _isFull || _state == BatteryState.charging
+      ? const Color(0xff35ff70)
+      : _level <= 20 ? const Color(0xffff3155) : const Color(0xffffa629);
 
-  Widget _widgetPanel() => Column(children: [
-    GestureDetector(
-      onPanStart: (_) => windowManager.startDragging(),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 7, 7, 0),
-        child: Row(children: [
-          const Icon(Icons.drag_indicator, size: 17, color: Colors.white54),
-          const Spacer(),
-          InkWell(onTap: _showSettings, child: const Icon(Icons.settings_outlined, size: 17)),
-          const SizedBox(width: 12),
-          InkWell(onTap: () => windowManager.hide(), child: const Icon(Icons.close, size: 17)),
-        ]),
-      ),
-    ),
-    Expanded(child: Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(_state == BatteryState.charging ? Icons.battery_charging_full : Icons.battery_full,
-              size: _compact ? 23 : 32, color: _batteryColor),
-          const SizedBox(width: 8),
-          Text(_level < 0 ? '--%' : '$_level%', style: TextStyle(
-            fontSize: _compact ? 24 : 37, fontWeight: FontWeight.w800, color: Colors.white)),
-        ]),
-        if (!_compact) ...[
-          const SizedBox(height: 4),
-          Text(_stateText, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          const SizedBox(height: 8),
-          ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(
-            value: _level < 0 ? 0 : _level / 100, minHeight: 6,
-            backgroundColor: Colors.white24, valueColor: AlwaysStoppedAnimation(_batteryColor),
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.transparent,
+    body: _settings ? _settingsPanel() : _floatingBar(),
+  );
+
+  Widget _floatingBar() => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onPanStart: (_) => windowManager.startDragging(),
+    onSecondaryTapDown: _showWidgetMenu,
+    child: Center(child: AnimatedBuilder(
+      animation: _glow,
+      builder: (context, _) {
+        final progress = (_level < 0 ? 0.0 : _level / 100).clamp(0.0, 1.0);
+        final fullPulse = _isFull ? (0.4 + 0.6 * (1 - (2 * _glow.value - 1).abs())) : 1.0;
+        final color = _glowColor;
+        return SizedBox(
+          width: _barWidth,
+          height: _barHeight + 18,
+          child: Center(child: Container(
+            width: _barWidth, height: _barHeight,
+            decoration: BoxDecoration(
+              color: const Color(0xff142032).withValues(alpha: .36),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: color.withValues(alpha: .75), width: 1.2),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: LayoutBuilder(builder: (context, constraints) {
+              final fillWidth = constraints.maxWidth * progress;
+              return Stack(children: [
+                Positioned(left: 0, top: 0, bottom: 0, width: fillWidth,
+                  child: Opacity(opacity: fullPulse,
+                    child: DecoratedBox(decoration: BoxDecoration(
+                      color: color.withValues(alpha: .8),
+                      borderRadius: BorderRadius.circular(99),
+                      boxShadow: [BoxShadow(color: color, blurRadius: 12)],
+                    )),
+                  ),
+                ),
+                if (!_isFull && fillWidth > 2)
+                  Positioned(
+                    left: (_glow.value * (fillWidth + 38) - 38).clamp(0.0, fillWidth),
+                    top: 0, bottom: 0, width: 24,
+                    child: DecoratedBox(decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        Colors.white.withValues(alpha: 0),
+                        Colors.white.withValues(alpha: .85),
+                        Colors.white.withValues(alpha: 0),
+                      ]),
+                    )),
+                  ),
+              ]);
+            }),
           )),
-        ],
-      ]),
+        );
+      },
     )),
-  ]);
+  );
 
   Widget _settingsPanel() => Padding(
     padding: const EdgeInsets.all(16),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         const Expanded(child: Text('Battery Float Settings', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
         IconButton(onPressed: _closeSettings, icon: const Icon(Icons.close)),
@@ -292,16 +350,31 @@ class _BatteryHomeState extends State<BatteryHome> with TrayListener, WindowList
         setState(() => _alwaysTop = v); await windowManager.setAlwaysOnTop(v); await _save();
       }),
       _switch('Play alert sound', _sound, (v) { setState(() => _sound = v); _save(); }),
-      _switch('Compact floating pill', _compact, (v) { setState(() => _compact = v); _save(); }),
+      const Text('Bar width'),
+      Slider(value: _barWidth, min: 160, max: 480, onChanged: (v) {
+        setState(() => _barWidth = v); _save();
+      }),
+      const Text('Bar thickness'),
+      Slider(value: _barHeight, min: 8, max: 30, onChanged: (v) {
+        setState(() => _barHeight = v); _save();
+      }),
+      Text('Glow duration: ${_glowSeconds.toStringAsFixed(1)} s'),
+      Slider(value: _glowSeconds, min: 0.6, max: 5, onChanged: (v) {
+        setState(() => _glowSeconds = v);
+        _glow.duration = Duration(milliseconds: (v * 1000).round());
+        _glow.repeat();
+        _save();
+      }),
+      const Text('Developed by Mohammad Shaazad', style: TextStyle(color: Colors.white54)),
       const SizedBox(height: 4),
       const Text('Close (X) hides to tray. Tray menu > Exit quits.',
         style: TextStyle(fontSize: 11, color: Colors.white60)),
       if (_lastError != null) Text(_lastError!, maxLines: 2, overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 10, color: Colors.orangeAccent)),
-      const Spacer(),
+      const SizedBox(height: 12),
       SizedBox(width: double.infinity, child: FilledButton(onPressed: _closeSettings,
         child: const Text('Done'))),
-    ]),
+    ])),
   );
 
   Widget _switch(String label, bool value, ValueChanged<bool> onChanged) =>

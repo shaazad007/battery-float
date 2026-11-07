@@ -30,3 +30,17 @@ This ZIP contains the full application Dart source and assets, but not machine-g
 - Windows notification permissions/Focus Assist can suppress toasts. If `local_notifier` fails on a specific Windows build, check the output console.
 - Auto-start with Windows is NOT implemented in this version. You may manually place a shortcut to the built EXE in `shell:startup` (Win+R).
 - The application needs Windows desktop, not Android emulator.
+
+
+## V2 changes
+- Only a slim floating battery status bar (no numeric percentage or icons).
+- Animated traveling highlight for charging/discharging, red at <=20%, pulsing at 100%.
+- Right-click anywhere on the bar for settings, always-on-top, developer credit and exit.
+- Drag anywhere on the bar.
+- Actual window opacity via `windowManager.setOpacity` (settings temporarily use full opacity for readability).
+- Configurable bar width, thickness, animation speed, notifications and sound.
+- Startup automation remains manual via Windows Startup folder.
+
+## GitHub cloud build
+Upload the project files to the root of your repository and use `.github/workflows/build-windows.yml`.
+The EXE is distributed with the whole Release folder.
