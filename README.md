@@ -1,46 +1,23 @@
-# Battery Float — Windows 10/11 Flutter app
+# Battery Float V3 — Windows Flutter
 
-## Requirements
-- Windows 10/11 64-bit
-- Flutter SDK (recent stable, Dart >=3.4) installed and added to PATH
-- Android Studio with Flutter + Dart plugins
-- **Visual Studio 2022 Community or Build Tools** with **Desktop development with C++** workload and Windows 10/11 SDK. Visual Studio Code is NOT a replacement.
+## Included
+- Combined draggable battery + network widget, with green/orange/red battery glow and 100% pulse.
+- Download and upload speeds, adjustable manual maximum and speed units, 500 ms default polling.
+- Right-click menu and system tray, centered opaque dark settings window.
+- Saved opacity, widget position, network preferences, battery alerts.
+- Credit: Developed by Mohammad Shaazad.
 
-## Setup (important)
-This ZIP contains the full application Dart source and assets, but not machine-generated Windows runner files. The runner is created locally by Flutter (normal Flutter project workflow).
-1. Extract ZIP to e.g. `C:\Projects\battery_float`.
-2. Open CMD in the project folder and run `flutter doctor -v`. Fix Windows toolchain errors.
-3. Double-click `scripts\setup_windows.bat` (or run `flutter create --platforms=windows --project-name battery_float .` then `flutter pub get`).
-4. Open the project root folder in Android Studio (not the `lib` folder).
-5. In Android Studio select the **Windows (desktop)** device and run `lib/main.dart`; or CMD: `flutter run -d windows`.
-6. For release double-click `scripts\build_release.bat`, or run `flutter build windows --release`.
-7. Your executable will be in `build\windows\x64\runner\Release\battery_float.exe`. Distribute the entire Release directory, including DLLs/data.
-
-## Features
-- Battery percentage and charging/discharging state, polled every 15 seconds.
-- Transparent, draggable, always-on-top widget; compact pill option.
-- Windows system tray icon and tooltip (battery % visible when hovering). Windows tray icons cannot reliably show a dynamic numeric percentage without generating/updating icons; this version displays a static battery icon and the % in tooltip.
-- Configurable downward-crossing notifications (10-90% presets), sound, opacity.
-- Preferences persisted between sessions.
-- Closing hides widget to tray; tray Exit quits.
+## Build online (no local Visual Studio required)
+1. Extract ZIP; upload **contents** of `battery_float` to GitHub repository root, replacing existing files.
+2. Keep `.github/workflows/build-windows.yml` in the repository.
+3. GitHub → Actions → Build Windows EXE → Run workflow (or commit to main to trigger).
+4. Download the `Battery-Float-Windows` artifact after a successful build.
+5. Extract the **whole** Release directory, then launch `battery_float.exe`.
 
 ## Notes
-- On the first run, a threshold that is already below the current battery percentage does not trigger an alert retroactively; alerts trigger when crossing downwards during monitoring.
-- Battery alerts are not guaranteed if Windows suspends the process or the laptop is asleep.
-- Windows notification permissions/Focus Assist can suppress toasts. If `local_notifier` fails on a specific Windows build, check the output console.
-- Auto-start with Windows is NOT implemented in this version. You may manually place a shortcut to the built EXE in `shell:startup` (Win+R).
-- The application needs Windows desktop, not Android emulator.
-
-
-## V2 changes
-- Only a slim floating battery status bar (no numeric percentage or icons).
-- Animated traveling highlight for charging/discharging, red at <=20%, pulsing at 100%.
-- Right-click anywhere on the bar for settings, always-on-top, developer credit and exit.
-- Drag anywhere on the bar.
-- Actual window opacity via `windowManager.setOpacity` (settings temporarily use full opacity for readability).
-- Configurable bar width, thickness, animation speed, notifications and sound.
-- Startup automation remains manual via Windows Startup folder.
-
-## GitHub cloud build
-Upload the project files to the root of your repository and use `.github/workflows/build-windows.yml`.
-The EXE is distributed with the whole Release folder.
+- This code has not been compiled on a Windows Flutter toolchain in this environment; check Actions logs and share any failed build step.
+- Network speeds measure per-adapter incoming/outgoing byte counters from Windows IP Helper API; this is **not** an internet speed test. Some VPN/virtual adapters may count traffic twice.
+- 32-bit counters can wrap on very fast links; samples that reset are clamped to zero.
+- `KB/s` and `MB/s` mean bytes per second; `Kbps` and `Mbps` mean bits per second.
+- Windows Startup shortcut is not automatically created. Press Win+R, enter `shell:startup`, add a shortcut to the built EXE.
+- The Settings window is centered by temporarily resizing/repositioning the main window; closing restores the saved widget location.
