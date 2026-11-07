@@ -1,11 +1,9 @@
 name: battery_float
-description: A transparent floating battery monitor for Windows 10 and 11.
+description: A transparent floating battery and bandwidth monitor for Windows.
 publish_to: none
-version: 1.0.0+1
-
+version: 1.0.1+2
 environment:
   sdk: '>=3.4.0 <4.0.0'
-
 dependencies:
   flutter:
     sdk: flutter
@@ -15,6 +13,7 @@ dependencies:
   tray_manager: ^0.3.0
   shared_preferences: ^2.3.5
   local_notifier: ^0.1.6
-
 flutter:
   uses-material-design: true
+  assets:
+    - assets/battery.ico

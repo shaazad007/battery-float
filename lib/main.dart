@@ -37,7 +37,7 @@ class NetworkSampler {
           final offset = 4 + i * 860;
           final type = data.getUint32(offset + 516, Endian.little);
           final status = data.getUint32(offset + 544, Endian.little);
-          if (type == 24 || status != 1) continue; // exclude loopback and down adapters
+          if (type == 24 || status != 4) continue; // exclude loopback and down adapters
           incoming += data.getUint32(offset + 552, Endian.little);
           outgoing += data.getUint32(offset + 576, Endian.little);
         }
@@ -77,8 +77,16 @@ Future<void> main() async {
     await windowManager.setPosition(const Offset(80, 80));
     await windowManager.show();
   });
-  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: BatteryFloat(),
-    title: 'Battery Float V3'));
+  runApp(MaterialApp(debugShowCheckedModeBanner: false, home: const BatteryFloat(),
+    title: 'Battery Float V3', theme: ThemeData.dark(useMaterial3: true).copyWith(
+      scaffoldBackgroundColor: const Color(0xff050f20),
+      textTheme: ThemeData.dark().textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
+      inputDecorationTheme: const InputDecorationTheme(
+        labelStyle: TextStyle(color: Colors.white),
+        hintStyle: TextStyle(color: Colors.white70),
+        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white54)),
+        focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xff00cfff)))),
+    )));
 }
 
 class BatteryFloat extends StatefulWidget {
@@ -97,7 +105,8 @@ class _BatteryFloatState extends State<BatteryFloat> with TrayListener, WindowLi
   double maxBytes = 2 * 1024 * 1024;
   double maxInput = 2;
   String maxUnit = 'MB/s', displayUnit = 'Auto', mode = 'both', speedDisplay = 'both';
-  double refreshSeconds = .5, opacity = 1, thickness = 12, glow = .7;
+  double refreshSeconds = .5, opacity = 1, thickness = 8, glow = .7;
+  double widgetWidth = 740, widgetHeight = 52;
   bool alwaysTop = true, sound = true, settings = false, startWithWindows = false;
   Set<int> alerts = {10, 20, 50};
   final Set<int> fired = {};
@@ -126,7 +135,9 @@ class _BatteryFloatState extends State<BatteryFloat> with TrayListener, WindowLi
       mode = p.getString('v3.mode') ?? 'both';
       speedDisplay = p.getString('v3.speedDisplay') ?? 'both';
       refreshSeconds = p.getDouble('v3.refresh') ?? .5;
-      thickness = p.getDouble('v3.thickness') ?? 12;
+      thickness = p.getDouble('v3.thickness') ?? 8;
+      widgetWidth = (p.getDouble('v3.width') ?? 740).clamp(520.0, 1200.0);
+      widgetHeight = (p.getDouble('v3.height') ?? 52).clamp(32.0, 100.0);
       glow = p.getDouble('v3.glow') ?? .7;
       alwaysTop = p.getBool('v3.alwaysTop') ?? true;
       sound = p.getBool('v3.sound') ?? true;
@@ -136,6 +147,8 @@ class _BatteryFloatState extends State<BatteryFloat> with TrayListener, WindowLi
     _updateMax();
     await windowManager.setAlwaysOnTop(alwaysTop);
     await windowManager.setOpacity(opacity);
+    await windowManager.setMinimumSize(const Size(520, 32));
+    await windowManager.setSize(Size(widgetWidth, widgetHeight));
     final x = p.getDouble('v3.x'), y = p.getDouble('v3.y');
     if (x != null && y != null) await windowManager.setPosition(Offset(x, y));
     await _tray();
@@ -217,6 +230,8 @@ class _BatteryFloatState extends State<BatteryFloat> with TrayListener, WindowLi
     await p.setString('v3.speedDisplay', speedDisplay);
     await p.setDouble('v3.refresh', refreshSeconds);
     await p.setDouble('v3.thickness', thickness);
+    await p.setDouble('v3.width', widgetWidth);
+    await p.setDouble('v3.height', widgetHeight);
     await p.setDouble('v3.glow', glow);
     await p.setBool('v3.alwaysTop', alwaysTop);
     await p.setBool('v3.sound', sound);
@@ -241,8 +256,8 @@ class _BatteryFloatState extends State<BatteryFloat> with TrayListener, WindowLi
     busy = true;
     await _save();
     setState(() => settings = false);
-    await windowManager.setMinimumSize(const Size(320, 60));
-    await windowManager.setSize(const Size(740, 76));
+    await windowManager.setMinimumSize(const Size(520, 32));
+    await windowManager.setSize(Size(widgetWidth, widgetHeight));
     if (oldPosition != null) await windowManager.setPosition(oldPosition!);
     await windowManager.setSkipTaskbar(true);
     await windowManager.setOpacity(opacity);
@@ -311,36 +326,36 @@ class _BatteryFloatState extends State<BatteryFloat> with TrayListener, WindowLi
       behavior: HitTestBehavior.opaque,
       onPanStart: (_) => windowManager.startDragging(),
       onSecondaryTapDown: (_) => trayManager.popUpContextMenu(),
-      child: Container(margin: const EdgeInsets.all(7), padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+      child: Container(margin: const EdgeInsets.all(3), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
         decoration: BoxDecoration(color: const Color(0xff06182c), borderRadius: BorderRadius.circular(50),
           border: Border.all(color: const Color(0xff25c9ff), width: 1.3),
           boxShadow: const [BoxShadow(color: Color(0x8825c9ff), blurRadius: 12)]),
         child: Row(children: [
           if (showBattery) ...[
-            Icon(Icons.bolt, color: batteryColor, size: 25), const SizedBox(width: 8),
+            Icon(Icons.bolt, color: batteryColor, size: 18), const SizedBox(width: 8),
             Expanded(flex: 3, child: _meter(level / 100, batteryColor, pulse: level == 100)),
           ],
-          if (showBattery && showNet) const Padding(padding: EdgeInsets.symmetric(horizontal: 14), child: Text('│', style: TextStyle(color: Colors.white54))),
+          if (showBattery && showNet) const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('│', style: TextStyle(color: Colors.white54))),
           if (showNet) ...[
-            const Icon(Icons.signal_cellular_alt, color: Color(0xff16dfff), size: 22), const SizedBox(width: 8),
+            const Icon(Icons.signal_cellular_alt, color: Color(0xff16dfff), size: 17), const SizedBox(width: 8),
             Expanded(flex: 3, child: _meter((speedDisplay == 'upload' ? upload : download) / maxBytes, const Color(0xff00cfff))),
             const SizedBox(width: 12),
-            if (speedDisplay != 'upload') Text('↓ ${_format(download)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+            if (speedDisplay != 'upload') Text('↓ ${_format(download)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
             if (speedDisplay == 'both') const Padding(padding: EdgeInsets.symmetric(horizontal: 9), child: Text('│', style: TextStyle(color: Colors.white54))),
-            if (speedDisplay != 'download') Text('↑ ${_format(upload)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xff31e8ff))),
+            if (speedDisplay != 'download') Text('↑ ${_format(upload)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xff31e8ff))),
           ]
         ])),
     );
   }
 
   Widget _choice(String selected, List<String> values, ValueChanged<String> change, {Map<String, String>? labels}) =>
-    Wrap(spacing: 7, runSpacing: 7, children: values.map((v) => ChoiceChip(label: Text(labels?[v] ?? v, style: const TextStyle(fontSize: 12)),
+    Wrap(spacing: 7, runSpacing: 7, children: values.map((v) => ChoiceChip(label: Text(labels?[v] ?? v, style: const TextStyle(fontSize: 12, color: Colors.white)),
       selected: selected == v, onSelected: (_) { setState(() => change(v)); _save(); },
       selectedColor: const Color(0xff0564bb), backgroundColor: const Color(0xff0a1c31),
       side: BorderSide(color: selected == v ? const Color(0xff00d7ff) : Colors.white24))).toList());
   Widget _section(String name, Widget child) => Container(padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(color: const Color(0xff0b2037), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xff2273a0))),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)), const SizedBox(height: 12), child]));
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)), const SizedBox(height: 12), child]));
   Widget _slider(String label, double value, double min, double max, ValueChanged<double> change, String suffix) =>
     Row(children: [SizedBox(width: 140, child: Text(label, style: const TextStyle(fontSize: 12))),
       Expanded(child: Slider(value: value.clamp(min, max), min: min, max: max, onChanged: (v) { setState(() => change(v)); _save(); })),
@@ -366,7 +381,9 @@ class _BatteryFloatState extends State<BatteryFloat> with TrayListener, WindowLi
       _choice(refreshSeconds.toString(), ['0.5','1.0','2.0'], (v) { refreshSeconds = double.parse(v); _startNetwork(); }, labels: {'0.5':'0.5 sec','1.0':'1 sec','2.0':'2 sec'}),
     ])), const SizedBox(height: 12),
     _section('Widget Appearance', Column(children: [
-      _slider('Bar Thickness', thickness, 6, 24, (v) => thickness = v, 'px'),
+      _slider('Bar Thickness', thickness, 4, 20, (v) => thickness = v, 'px'),
+       _slider('Widget Height', widgetHeight, 32, 100, (v) { widgetHeight = v; if (!settings) windowManager.setSize(Size(widgetWidth, widgetHeight)); }, 'px'),
+       _slider('Widget Width', widgetWidth, 520, 1200, (v) { widgetWidth = v; if (!settings) windowManager.setSize(Size(widgetWidth, widgetHeight)); }, 'px'),
       _slider('Opacity', opacity * 100, 20, 100, (v) => opacity = v / 100, '%'),
       _slider('Glow Intensity', glow * 100, 0, 100, (v) => glow = v / 100, '%'),
     ])), const SizedBox(height: 12),
@@ -401,7 +418,7 @@ class _BatteryFloatState extends State<BatteryFloat> with TrayListener, WindowLi
       Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: page == 'General' ? _general() : _other()))
     ])),
     Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-      OutlinedButton(onPressed: () { setState(() { opacity = 1; thickness = 12; glow = .7; mode = 'both'; speedDisplay = 'both'; displayUnit = 'Auto'; refreshSeconds = .5; maxInput = 2; maxUnit = 'MB/s'; maxController.text = '2'; _updateMax(); }); _startNetwork(); _save(); }, child: const Text('Restore Defaults')),
+      OutlinedButton(onPressed: () { setState(() { opacity = 1; thickness = 8; widgetHeight = 52; widgetWidth = 740; glow = .7; mode = 'both'; speedDisplay = 'both'; displayUnit = 'Auto'; refreshSeconds = .5; maxInput = 2; maxUnit = 'MB/s'; maxController.text = '2'; _updateMax(); }); _startNetwork(); _save(); }, child: const Text('Restore Defaults')),
       const Spacer(), ElevatedButton(onPressed: _save, child: const Text('Apply')), const SizedBox(width: 8),
       FilledButton(onPressed: _closeSettings, child: const Text('OK')), const SizedBox(width: 8),
       OutlinedButton(onPressed: _closeSettings, child: const Text('Close')),
